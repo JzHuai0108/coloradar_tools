@@ -15,6 +15,14 @@ if __name__ == '__main__':
   parser.add_argument('-sc', '--single_chip', type=str, default='true', help='true to plot single chip data, false to plot cascade data')
   args = parser.parse_args()
 
+  # for now, we use a global thresholding to get the point clouds,
+  # in the future, we may use a CFAR (constant false alarm rate) target detector to convert the heatmaps to point clouds.
+  # reference implementations are in
+  # 1. https://github.com/ati-ozgur/RmSAT-CFAR
+  # 2. https://github.com/tooth2/2D-CFAR
+  # 3. https://github.com/sunsided/SFND_Radar_2D_CFAR
+  # 4. https://github.com/tarekarahman/CFAR-Detection-for-Doppler-Radar
+  # 5. maybe the TI processor sdk for cfar on adc samples.
   # TODO(binliang)
   # load heatmaps for cascaded data
   # compute some statistics, e.g., intensity histogram to choose the proper threshold
