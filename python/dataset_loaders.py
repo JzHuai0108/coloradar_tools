@@ -78,9 +78,9 @@ def get_heatmap(index, seq_dir, params):
 def get_pointcloud(index, seq_dir, params):
   
   if params['sensor_type'] == 'lidar':
-    filename = seq_dir + 'lidar/pointclouds/lidar_pointcloud_' + str(index) + '.bin'
+    filename = seq_dir + '/lidar/pointclouds/lidar_pointcloud_' + str(index) + '.bin'
   else:
-    filename = seq_dir + 'single_chip/pointclouds/data/radar_pointcloud_' + str(index) + '.bin'
+    filename = seq_dir + '/single_chip/pointclouds/data/radar_pointcloud_' + str(index) + '.bin'
 
   if not os.path.exists(filename):
     print('File ' + filename + ' not found')

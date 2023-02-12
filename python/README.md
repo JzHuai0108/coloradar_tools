@@ -140,6 +140,41 @@ The script ```plot_pointclouds.py``` is provided to demonstrate the use of the f
   - **-hm (--plot_heatmap)** *(bool)*: true to plot radar heatmaps, false to plot pointclouds, defaults to false
   - **-sc (--single_chip)** *(bool)*: true to plot single chip data, false to plot cascaded data
 
+This script works with python2.7 but fails with python 3.6 for the below error
+```
+Traceback (most recent call last):
+  File "/home/jhuai/.local/lib/python3.6/site-packages/matplotlib/backends/backend_qt5.py", line 508, in _draw_idle
+    self.draw()
+  File "/home/jhuai/.local/lib/python3.6/site-packages/matplotlib/backends/backend_agg.py", line 388, in draw
+    self.figure.draw(self.renderer)
+  File "/home/jhuai/.local/lib/python3.6/site-packages/matplotlib/artist.py", line 38, in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+  File "/home/jhuai/.local/lib/python3.6/site-packages/matplotlib/figure.py", line 1709, in draw
+    renderer, self, artists, self.suppressComposite)
+  File "/home/jhuai/.local/lib/python3.6/site-packages/matplotlib/image.py", line 135, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "/home/jhuai/.local/lib/python3.6/site-packages/matplotlib/artist.py", line 38, in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+  File "/home/jhuai/.local/lib/python3.6/site-packages/mpl_toolkits/mplot3d/axes3d.py", line 292, in draw
+    reverse=True)):
+  File "/home/jhuai/.local/lib/python3.6/site-packages/mpl_toolkits/mplot3d/axes3d.py", line 291, in <lambda>
+    key=lambda col: col.do_3d_projection(renderer),
+  File "/home/jhuai/.local/lib/python3.6/site-packages/mpl_toolkits/mplot3d/art3d.py", line 540, in do_3d_projection
+    fcs = (_zalpha(self._facecolor3d, vzs) if self._depthshade else
+  File "/home/jhuai/.local/lib/python3.6/site-packages/mpl_toolkits/mplot3d/art3d.py", line 847, in _zalpha
+    rgba = np.broadcast_to(mcolors.to_rgba_array(colors), (len(zs), 4))
+  File "<__array_function__ internals>", line 6, in broadcast_to
+  File "/home/jhuai/.local/lib/python3.6/site-packages/numpy/lib/stride_tricks.py", line 180, in broadcast_to
+    return _broadcast_to(array, shape, subok=subok, readonly=True)
+  File "/home/jhuai/.local/lib/python3.6/site-packages/numpy/lib/stride_tricks.py", line 125, in _broadcast_to
+    op_flags=['readonly'], itershape=shape, order='C')
+ValueError: operands could not be broadcast together with remapped shapes [original->remapped]: (0,4) and requested shape (10,4)
+```
+
+Usage example
+```
+python2 plot_pointclouds.py -s /data/coloradar/2_28_2021_outdoors_run0 -c /data/coloradar/calib -sc=false -hm=true
+```
 An example image from the animation is shown below. Lidar points are shown in red, radar heatmap points are colormapped by intensity from dark purple to yellow, and the sensor rig positions are in green.
 
 <img src="https://github.com/arpg/ColoRadar_tools/blob/master/img/lidar_radar1.png">
