@@ -1,7 +1,7 @@
 import numpy as np 
 import struct
 import os
-
+import json
 
 # reads raw adc data from bin file 
 # param[in] index: index of the requested frame
@@ -371,33 +371,42 @@ def read_phase_freq_calib(calib_filename):
   freq_calib = {}
 
   with open(calib_filename) as file:
-    lines = file.readlines()
+    data = file.read()
+  js = json.loads(data)
+  num_tx = js["antennaCalib"]["numTx"]
+  num_rx = js["antennaCalib"]["numRx"]
+  frequency_slope = js["antennaCalib"]["frequencySlope"]
+  sampling_rate = js["antennaCalib"]["samplingRate"]
+  phase_cal_mat = js["antennaCalib"]["phaseCalibrationMatrix"]
+  freq_cal_mat = js["antennaCalib"]["frequencyCalibrationMatrix"]
+  frequency_slope = js["antennaCalib"]["frequencySlope"]
+#    lines = file.readlines()
 
-  num_tx = int(lines[0].split(':')[1])
-  num_rx = int(lines[1].split(':')[1])
-  frequency_slope = float(lines[2].split(':')[1])
-  sampling_rate = float(lines[3].split(':')[1])
+#  num_tx = int(lines[0].split(':')[1])
+#  num_rx = int(lines[1].split(':')[1])
+#  frequency_slope = float(lines[2].split(':')[1])
+#  sampling_rate = float(lines[3].split(':')[1])
 
-  phase_cal_mat_str = lines[5].split(':')[1]
-  phase_cal_mat_arr = np.array(phase_cal_mat_str.split(',')).astype('float')
-  phase_cal_mat_arr = phase_cal_mat_arr[:-1:2] + 1j * phase_cal_mat_arr[1::2]
-  phase_cal_mat = phase_cal_mat_arr.reshape(num_tx, num_rx)
+#  phase_cal_mat_str = lines[5].split(':')[1]
+#  phase_cal_mat_arr = np.array(phase_cal_mat_str.split(',')).astype('float')
+#  phase_cal_mat_arr = phase_cal_mat_arr[:-1:2] + 1j * phase_cal_mat_arr[1::2]
+#  phase_cal_mat = phase_cal_mat_arr.reshape(num_tx, num_rx)
 
   phase_calib['num_rx'] = num_rx
   phase_calib['num_tx'] = num_tx
   phase_calib['cal_matrix'] = phase_cal_mat
 
-  freq_cal_mat_str = lines[4].split(':')[1]
-  freq_cal_mat_arr = np.array(freq_cal_mat_str.split(',')).astype('float')
-  freq_cal_mat = freq_cal_mat_arr.reshape(num_tx, num_rx)
+#  freq_cal_mat_str = lines[4].split(':')[1]
+#  freq_cal_mat_arr = np.array(freq_cal_mat_str.split(',')).astype('float')
+#  freq_cal_mat = freq_cal_mat_arr.reshape(num_tx, num_rx)
 
   freq_calib['num_rx'] = num_rx
   freq_calib['num_tx'] = num_tx
   freq_calib['frequency_slope'] = frequency_slope
   freq_calib['sampling_rate'] = sampling_rate
   freq_calib['cal_matrix'] = freq_cal_mat
-
   return phase_calib, freq_calib
+
 
 
 # gets config and calibration data for the single chip radar sensor
