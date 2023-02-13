@@ -8,7 +8,7 @@
 
 %% Define User values
 
-source_dir           = '../raw_data/12_21_2020_arpg_lab_run0/';
+source_dir           = '../2_28_2021_outdoors_run0/';
 device_name          = 'cascade/';
 adc_data_path        = 'adc_samples/data/';
 adc_data_suffix      = '.bin';
@@ -42,15 +42,25 @@ elevation_bins       = [-1.27362585068 -1.10726797581 -0.98413258791 -0.88057309
 %% Define frames to read
 
 % process individual frames
-for frame_index    = 200:201
-      
+% get all files in folder
+files = dir([source_dir,device_name,heatmap_path,'*', heatmap_suffix]);
+% get the filenames
+filenames = {files.name};
+numheatmaps = length(filenames);
+for i = 1:length(filenames)
+   filenames{i} = [source_dir,device_name,heatmap_path,filenames{i}];
+end
+disp(['number of heatmaps ', num2str(numheatmaps)]);
+disp(['first heatmap file name ', filenames{1}]);
+
+for frame_index    = 0:numheatmaps-1
    %% Define the full filenames
    
    adc_data_filename       = [source_dir,device_name,adc_data_path,'frame_',num2str(frame_index),adc_data_suffix];
    adc_time_filename       = [source_dir,device_name,adc_time_path,'timestamps',adc_time_suffix];
    heatmap_data_filename   = [source_dir,device_name,heatmap_path,'heatmap_',num2str(frame_index),heatmap_suffix];
    heatmap_time_filename   = [source_dir,device_name,heatmap_time_path,'timestamps',heatmap_time_suffix];
-   
+
    %% Proceed if the files exist
    
    good_adc_data_filename     = exist(adc_data_filename,'file');
@@ -61,136 +71,13 @@ for frame_index    = 200:201
    if((good_adc_data_filename == 2) && (good_adc_time_filename == 2) && ...
          (good_heatmap_data_filename == 2) && (good_heatmap_time_filename == 2))
       
-      disp(' ')
+      % disp(' ')
       disp(['...Processing frame number: ',num2str(frame_index)]);
-            
-      %% Read the ADC Samples
-      %  ====================
-      
-      disp(' ')
-      disp(['opening ADC sample file: ',adc_data_filename,'...']);
-      
-      % Read the binary file as a string of 16 bit integers
-      
-      % open the file
-      fid   = fopen(adc_data_filename,'r');
-      [input_data, num_cnt] = fread(fid,Inf,'int16');
-      
-      % There should be num_Rx * num_Tx * num_ADC * num_chirp = real samples
-      % There should be num_Rx * num_Tx * num_ADC * num_chirp = imag samples
-      
-      expected_num_samples = 2*(num_Rx * num_Tx * num_ADC * num_chirp);
-      disp(['Expected number of samples: ',num2str(expected_num_samples)]);
-      disp(['Read number of samples:     ',num2str(num_cnt)]);
-      
-      %% Convert from serial format to matrix format
-      
-      % The decomposition of serial values into matrix notation:
-      % i = 2(s + Ns(c + Nc(r + tNr)))
-      % where
-      %      t = Tx_num  (0-11)
-      %      r = Rx_num  (0-15)
-      %      c = chirp_num  (0-15)
-      %      s = ADC sample (0-256)
-      
-      ADC_data_real_value  = ones(num_Tx, num_Rx, num_chirp, num_ADC) .* NaN;
-      ADC_data_imag_value  = ones(num_Tx, num_Rx, num_chirp, num_ADC) .* NaN;
-      
-      for index_Tx = 1:num_Tx
-         % get 0-ref index
-         t = index_Tx - 1;
-         
-         for index_Rx = 1:num_Rx
-            % get 0-ref index
-            r = index_Rx - 1;
-            
-            for index_chirp = 1:num_chirp
-               % get 0-ref index
-               c = index_chirp - 1;
-               
-               for index_ADC = 1:num_ADC
-                  % get 0-ref index
-                  s = index_ADC - 1;
-                  
-                  index_real = 2*(s + num_ADC*(c + num_chirp*(r + t*num_Rx))) + 1;
-                  index_range_rate = index_real + 1;
-                  
-                  % save the recorded value
-                  ADC_data_real_value(index_Tx, index_Rx, index_chirp, index_ADC) = input_data(index_real);
-                  ADC_data_imag_value(index_Tx, index_Rx, index_chirp, index_ADC) = input_data(index_range_rate);
-                                    
-               end % end for index_Tx
-            end % end for index_Rx
-         end % end for index_chirp
-      end % end for index_ADC
-      
-      %% Read the ADC sample time (seconds since 1-Jan-1970)
-      
-      time_fid                = fopen(adc_time_filename,'r');
-      time_stamp_all_frames   = fscanf(time_fid,'%f');
-      adc_time                = time_stamp_all_frames(frame_index);
-      
-      %% Read the heatmap file
-      %  =====================
-      
-      disp(' ')
-      disp(['opening heatmap file: ',heatmap_data_filename,'...']);
-      
-      % Read the binary file as a string of 16 bit integers
-      
-      % open the file
-      fid   = fopen(heatmap_data_filename,'r');
-      [input_heatmap_data, num_cnt] = fread(fid,Inf,'single'); % 32 bit float
-      
-      % There should be two value per heatmap location: intensity & range rate
-      expected_num_samples = 2*(num_range_bins * num_elevation_bins * num_azimuth_bins);
-      
-      disp(['Expected number of samples: ',num2str(expected_num_samples)]);
-      disp(['Read number of samples:     ',num2str(num_cnt)]);
-      
-      %% Convert from serial format to matrix format
-      
-      % The decomposition of serial values into matrix notation:
-      % i = 2(r + Nr(a + Na(e)))
-      % where indices are 0-referenced
-      %      r = num_range_bins     (0-127)
-      %      a = num_azimuth_bins   (0-127)
-      %      e = num_elevation_bins (0-31)
-      
-      heatmap_intensity  = ones(num_range_bins, num_azimuth_bins, num_elevation_bins) .* NaN;
-      heatmap_range_rate = ones(num_range_bins, num_azimuth_bins, num_elevation_bins) .* NaN;
-      
-      for index_range = 1:num_range_bins
-         % get 0-ref index
-         r = index_range - 1;
-         
-         for index_azimuth = 1:num_azimuth_bins
-            % get 0-ref index
-            a = index_azimuth - 1;
-            
-            for index_elevation = 1:num_elevation_bins
-               % get 0-base index
-               e = index_elevation - 1;
-               
-               index_intensity = 2* (r + num_range_bins * (a + num_azimuth_bins*e)) + 1;
-               index_range_rate = index_intensity + 1;
-
-               % save the recorded value
-               heatmap_intensity(index_range, index_azimuth, index_elevation) = input_heatmap_data(index_intensity);
-               heatmap_range_rate(index_range, index_azimuth, index_elevation) = input_heatmap_data(index_range_rate);
-               
-            end % end for index_elevation
-         end % end for index_azimuth
-      end % end for index_range
-
-      %% Read the ADC sample time (seconds since 1-Jan-1970)
-      
-      time_fid                = fopen(heatmap_time_filename,'r');
-      time_stamp_all_frames   = fscanf(time_fid,'%f');
-      heatmap_time            = time_stamp_all_frames(frame_index);
+      [adc_time, ADC_data_real_value, ADC_data_imag_value] = loadAdcFrame(adc_data_filename, adc_time_filename, frame_index, data_parm);
+      [heatmap_time, heatmap_intensity, heatmap_range_rate] = loadHeatmap(heatmap_data_filename, heatmap_time_filename, frame_index, heatmap_parm);
 
       %% Process the ADC, time, and heatmap data
-      
+      disp(['heatmap time ', num2str(heatmap_time), ' adc-heatmap time ', num2str(adc_time - heatmap_time)]);
       % The ADC samples, timestamp, and heatmap data have been loaded into
       % the MATLAB workspace. 
       
@@ -199,9 +86,3 @@ for frame_index    = 200:201
    end % end if(good_filename == 2)
    
 end % end for frame_index loop
-
-
-
-
-
-

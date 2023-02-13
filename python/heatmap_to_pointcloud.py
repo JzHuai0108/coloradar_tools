@@ -23,14 +23,20 @@ if __name__ == '__main__':
   # 3. https://github.com/sunsided/SFND_Radar_2D_CFAR
   # 4. https://github.com/tarekarahman/CFAR-Detection-for-Doppler-Radar
   # 5. maybe the TI processor sdk for cfar on adc samples.
+  # Actually, we used a CA-CFAR in matlab for target point detection.
+  # see the matlab code in the matlab folder.
+
   # TODO(binliang)
-  # load heatmaps for cascaded data
-  # compute some statistics, e.g., intensity histogram to choose the proper threshold
-  # open bagfile in appending mode
-  # for each heatmap
-  #   convert to point cloud, refer to plot_pointclouds.py line 159-line 178.
-  #
+  # load every target point frame for cascaded data
+  # open bagfile in write mode
+
+  # for each target point frame
+  #   convert to point cloud2
+  #   write to the rosbag
+  # open the bag with the IMU topic
+  # for each IMU message
   #   write to the rosbag
   # close bag file
+  
 
 
