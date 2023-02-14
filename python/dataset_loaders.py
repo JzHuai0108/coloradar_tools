@@ -64,7 +64,11 @@ def get_heatmap(index, seq_dir, params):
                               params['num_azimuth_bins'],
                               params['num_range_bins'],
                               2)) # 2 vals for each bin (doppler peak intensity and peak location)
-
+  maxvel = frame[:, :, :, 1].max()
+  minvel = frame[:, :, :, 1].min()
+  if abs(maxvel) < 0.01 and abs(minvel) < 0.01:
+    print('Scale up the velocity by 1000 for small vel range {} to {}.'.format(minvel, maxvel))
+    frame[:, :, :, 1] = frame[:, :, :, 1] * 1000
   return frame
 
 
