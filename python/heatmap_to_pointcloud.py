@@ -29,6 +29,10 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
     minval = radar_hm[:, :, :, 0].min()
     # print('intensity range is [{}, {}]'.format(minval, maxval))
     radar_hm[:, :, :, 0] = (radar_hm[:, :, :, 0] - minval) / (maxval - minval)
+
+    allintensities = radar_hm[:, :, :, 0].flatten()
+    intensity_threshold = np.percentile(allintensities, cfar_params['intensity_threshold_percentile'])
+
     indicators = np.zeros(hmshp[:3])
     half_range_guard = cfar_params['range_guard'] // 2
     half_azimuth_guard = cfar_params['azimuth_guard'] // 2
@@ -46,12 +50,11 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
     # print('alpha is {} for N {}'.format(alpha, N))
     start = time.time()
     pt_ids = []
-    salient_intensities = []
 
     for i in range(elvstart, elvend):
         for j in range(azistart, aziend):
             for k in range(rngstart, rngend):
-                if radar_hm[i,j,k,0] < cfar_params['intensity_threshold']:
+                if radar_hm[i,j,k,0] < intensity_threshold:
                     continue
                 # get values of the training cells
                 maxval = 0
@@ -77,7 +80,6 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
                 if radar_hm[i, j, k, 0] > thresh:  # and i == maxids[0] and j == maxids[1] and k == maxids[2]:
                     pt_ids.append((i, j, k))
                     indicators[i, j, k] = radar_hm[i, j, k, 0]
-                    salient_intensities.append(radar_hm[i, j, k, 0])
     end1 = time.time()
     t1 = end1 - start
 
@@ -100,11 +102,13 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
             if status[c] == 0:
                 break
     nms_ptids = [pt_ids[i] for i in range(len(pt_ids)) if status[i] == 1]
-    print('Found {} peaks, NMS {} points, min salient point intensity {} with threshold factor {}.'.format(
-        len(pt_ids), len(nms_ptids), np.min(salient_intensities), cfar_params['custom_threshold_factor']))
+
     end2 = time.time()
     t2= end2 - end1
-    print('Elapsed time for peak detection {} s, NMS {} s'.format(t1, t2))
+    print('Found {} peaks, NMS {} points with intensity threshold {:.6f}. '
+          'Elapsed time for peak detection {:.3f} s, NMS {:.4f} s'.format(
+        len(pt_ids), len(nms_ptids),
+        intensity_threshold, t1, t2))
     return nms_ptids
 
 
@@ -168,6 +172,7 @@ if __name__ == '__main__':
                       help='intensity threshold for plotting heatmap points. '
                            'Refer to High Resolution Point Clouds from mmWave Radar '
                            'https://arxiv.org/pdf/2206.09273.pdf on more info about heatmap.')
+  parser.add_argument('-p', '--threshold_percentile', type=float, default=85, help='percentile of intensity threshold')
   parser.add_argument('-mr', '--min_range', type=int, default=10,
                       help='if plotting heatmaps, minimum range bin to start plotting')
   args = parser.parse_args()
@@ -184,7 +189,7 @@ if __name__ == '__main__':
       'elevation_guard': 4,
       'elevation_train': 4,
       'custom_threshold_factor': 6.0,  # scale up the median threshold by this factor.
-      'intensity_threshold': 0.01,  # skip points of less intensity.
+      'intensity_threshold_percentile': args.threshold_percentile,  # skip points of less intensity.
       'pfa': 0.01,  # false alarm probability, not used for now.
   }
   print('CFAR parameters: {}'.format(cfar_params))
@@ -219,7 +224,6 @@ if __name__ == '__main__':
                         'radar'))
       radar_idx += 1
 
-  print('Total frames {}'.format(len(plot_data)))
   radar_pc_precalc = get_heatmap_points(radar_params, args.min_range)
 
   fig = plt.figure()
@@ -235,6 +239,7 @@ if __name__ == '__main__':
 
   for i in range(0, len(plot_data)):
       # load full radar heatmap from file
+      print('Processing frame {} of {}'.format(i, len(plot_data)))
       radar_hm = get_heatmap(plot_data[i][2], args.seq, radar_params)
 
       # assign intensity and doppler values to precalculated heatmap points
