@@ -7,8 +7,11 @@ import matplotlib.pyplot as plt
 import matplotlib
 from mpl_toolkits.mplot3d import Axes3D # <--- This is important for 3d plotting
 
+import rospy
+import rosbag
 import sensor_msgs.point_cloud2 as pcl2
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Imu, PointField
+from std_msgs.msg import Header
 
 from dataset_loaders import *
 from utils import *
@@ -16,11 +19,10 @@ from utils import *
 def heatmap_to_pointcloud(radar_hm, cfar_params):
     """
 
-    :param radar_hm: elevation x azimuth x range x 2
+    :param radar_hm: elevation x azimuth x range x 2(intensity and range rate)
     :param cfar_params:
-    :return: indices of detected points
+    :return: indices of detected points [ei, ai, ri]
     """
-    pt_ids = []
     hmshp = radar_hm.shape
     # normalize the heatmap in intensity
     maxval = radar_hm[:, :, :, 0].max()
@@ -28,11 +30,14 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
     # print('intensity range is [{}, {}]'.format(minval, maxval))
     radar_hm[:, :, :, 0] = (radar_hm[:, :, :, 0] - minval) / (maxval - minval)
     indicators = np.zeros(hmshp[:3])
-    rngstart = cfar_params['range_guard'] // 2 + cfar_params['range_train'] // 2
+    half_range_guard = cfar_params['range_guard'] // 2
+    half_azimuth_guard = cfar_params['azimuth_guard'] // 2
+    half_elevation_guard = cfar_params['elevation_guard'] // 2
+    rngstart = half_range_guard + cfar_params['range_train'] // 2
     rngend = hmshp[2] - rngstart
-    azistart = cfar_params['azimuth_guard'] // 2 + cfar_params['azimuth_train'] // 2
+    azistart = half_azimuth_guard + cfar_params['azimuth_train'] // 2
     aziend = hmshp[1] - azistart
-    elvstart = cfar_params['elevation_guard'] // 2 + cfar_params['elevation_train'] // 2
+    elvstart = half_elevation_guard + cfar_params['elevation_train'] // 2
     elvend = hmshp[0] - elvstart
     N = (elvstart * 2 + 1) * (azistart * 2 + 1) * (rngstart * 2 + 1) - (cfar_params['elevation_guard'] + 1) * \
         (cfar_params['azimuth_guard'] + 1) * (cfar_params['range_guard'] + 1)
@@ -40,52 +45,63 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
     # alpha = N * (math.pow(cfar_params['pfa'], -1/N) - 1)
     # print('alpha is {} for N {}'.format(alpha, N))
     start = time.time()
+    pt_ids = []
+    salient_intensities = []
+
     for i in range(elvstart, elvend):
         for j in range(azistart, aziend):
             for k in range(rngstart, rngend):
                 if radar_hm[i,j,k,0] < cfar_params['intensity_threshold']:
                     continue
-                # get values in the training block
+                # get values of the training cells
                 maxval = 0
                 maxids = []
-                vals = []
+                vals = np.zeros(N)
+                valid = 0
                 for ii in range(i - elvstart, i + elvstart + 1):
                     for jj in range(j - azistart, j + azistart + 1):
                         for kk in range(k - rngstart, k + rngstart + 1):
                             if radar_hm[ii, jj, kk, 0] > maxval:
                                 maxval = radar_hm[ii, jj, kk, 0]
                                 maxids = [ii, jj, kk]
-                            if i - cfar_params['elevation_guard'] // 2 <= ii <= i + cfar_params[
-                                'elevation_guard'] // 2 and \
-                                    j - cfar_params['azimuth_guard'] // 2 <= jj <= j + cfar_params[
-                                'azimuth_guard'] // 2 and \
-                                    k - cfar_params['range_guard'] // 2 <= kk <= k + cfar_params['range_guard'] // 2:
+                            if i - half_elevation_guard <= ii <= i + half_elevation_guard and \
+                                    j - half_azimuth_guard <= jj <= j + half_azimuth_guard and \
+                                    k - half_range_guard <= kk <= k + half_range_guard:
                                 continue
                             else:
-                                vals.append(radar_hm[ii, jj, kk, 0])
-
+                                vals[valid] = radar_hm[ii, jj, kk, 0]
+                                valid += 1
+                assert(valid == N)
                 med = np.median(vals)
                 thresh = med * cfar_params['custom_threshold_factor']
-                if radar_hm[i,j,k,0] > thresh: # and i == maxids[0] and j == maxids[1] and k == maxids[2]:
+                if radar_hm[i, j, k, 0] > thresh:  # and i == maxids[0] and j == maxids[1] and k == maxids[2]:
                     pt_ids.append((i, j, k))
                     indicators[i, j, k] = radar_hm[i, j, k, 0]
+                    salient_intensities.append(radar_hm[i, j, k, 0])
     end1 = time.time()
-    t1= end1 - start
-    print('Found {} points'.format(len(pt_ids)))
+    t1 = end1 - start
+
     # nonmaximum suppression in blocks of size 3x3x3
     status = np.ones(len(pt_ids))
     for c, ids in enumerate(pt_ids):
         i, j, k = ids
         val = indicators[i, j, k]
-        for ii in range(i - 1, i+2):
-            for jj in range(j - 1, j+2):
-                for kk in range(k - 1, k+2):
+        if val == 0:
+            continue
+        for ii in range(i - 1, i + 2):
+            for jj in range(j - 1, j + 2):
+                for kk in range(k - 1, k + 2):
                     if indicators[ii, jj, kk] > val:
                         indicators[i, j, k] = 0
                         status[c] = 0
                         break
+                if status[c] == 0:
+                    break
+            if status[c] == 0:
+                break
     nms_ptids = [pt_ids[i] for i in range(len(pt_ids)) if status[i] == 1]
-    print('NMS {} points'.format(len(nms_ptids)))
+    print('Found {} peaks, NMS {} points, min salient point intensity {} with threshold factor {}.'.format(
+        len(pt_ids), len(nms_ptids), np.min(salient_intensities), cfar_params['custom_threshold_factor']))
     end2 = time.time()
     t2= end2 - end1
     print('Elapsed time for peak detection {} s, NMS {} s'.format(t1, t2))
@@ -104,7 +120,7 @@ def select_points(radar_pc_precalc, pt_ids, heatmapshape):
     """
     ids = []
     steps = [heatmapshape[1] * heatmapshape[2], heatmapshape[2]]
-
+    assert(steps[0] * heatmapshape[0] == radar_pc_precalc.shape[0])
     for id in pt_ids:
         ei, ai, ri = id
         arrayid = ei * steps[0] + ai * steps[1] + ri
@@ -113,9 +129,10 @@ def select_points(radar_pc_precalc, pt_ids, heatmapshape):
     radar_pc_local = radar_pc_precalc[ids, :]
     return radar_pc_local
 
-def save_imu_data(bag, imudata, imutime, frame_id, topic):
+def save_imu_data(bag, imudata, imutime, seq_id, topic):
     imu = Imu()
-    imu.header.frame_id = frame_id
+    imu.header.frame_id = 'imu'
+    imu.header.seq = seq_id
     imu.header.stamp = rospy.Time.from_sec(imutime)
     imu.linear_acceleration.x = imudata['accel'][0]
     imu.linear_acceleration.y = imudata['accel'][1]
@@ -125,12 +142,12 @@ def save_imu_data(bag, imudata, imutime, frame_id, topic):
     imu.angular_velocity.z = imudata['gyro'][2]
     bag.write(topic, imu, t=imu.header.stamp)
 
-def save_pointcloud(bag, radar_pc_local, scan_time, frame_id, topic):
+def save_pointcloud(bag, radar_pc_local, scan_time, seq_id, topic):
     """radar_pc_local: N x 5, N is the number of points
     refer to https://github.com/tomas789/kitti2bag/blob/master/kitti2bag/kitti2bag.py"""
-    # create header
     header = Header()
-    header.frame_id = frame_id
+    header.frame_id = 'cascade_radar'
+    header.seq = seq_id
     header.stamp = rospy.Time.from_sec(scan_time)
 
     # fill pcl msg
@@ -155,23 +172,22 @@ if __name__ == '__main__':
                       help='if plotting heatmaps, minimum range bin to start plotting')
   args = parser.parse_args()
 
-
   all_radar_params = get_cascade_params(args.calib)
-
   radar_params = all_radar_params['heatmap']
   gt_params = get_groundtruth_params()
+  # parameters for detecting peaks
   cfar_params = {
       'range_guard': 4,
-      'range_train': 8,
+      'range_train': 6,
       'azimuth_guard': 4,
-      'azimuth_train': 6,
-      'elevation_guard': 6,
-      'elevation_train': 8,
-      'custom_threshold_factor': 5.0,
-      'intensity_threshold': 0.01, # skip points of less intensity
-      'pfa': 0.01,
+      'azimuth_train': 4,
+      'elevation_guard': 4,
+      'elevation_train': 4,
+      'custom_threshold_factor': 6.0,  # scale up the median threshold by this factor.
+      'intensity_threshold': 0.01,  # skip points of less intensity.
+      'pfa': 0.01,  # false alarm probability, not used for now.
   }
-
+  print('CFAR parameters: {}'.format(cfar_params))
   # make extrinsic transforms as 4x4 transformation matrix
   radar_params['T_bs'] = np.eye(4)
   radar_params['T_bs'][:3,3] = radar_params['translation']
@@ -203,7 +219,7 @@ if __name__ == '__main__':
                         'radar'))
       radar_idx += 1
 
-  print('#Frames {}'.format(len(plot_data)))
+  print('Total frames {}'.format(len(plot_data)))
   radar_pc_precalc = get_heatmap_points(radar_params, args.min_range)
 
   fig = plt.figure()
@@ -213,11 +229,11 @@ if __name__ == '__main__':
   ax.set_zlim((-10,10))
   ax.set_title(radar_label)
 
-  outputbag = os.path.join(arg.seq, 'cascade', 'pointclouds.bag')
+  outputbag = os.path.join(args.seq, 'cascade', 'pointclouds.bag')
   bag = rosbag.Bag(outputbag, 'w')
   topic = '/cascade/pointcloud'
 
-  for i in range(len(plot_data)):
+  for i in range(0, len(plot_data)):
       # load full radar heatmap from file
       radar_hm = get_heatmap(plot_data[i][2], args.seq, radar_params)
 
@@ -248,18 +264,15 @@ if __name__ == '__main__':
                  s=10,
                  label=radar_label)
       radar_time = plot_data[i][0]
-      save_to_rosbag(bag, radar_pc_local, radar_time, i, topic)
+      save_pointcloud(bag, radar_pc_local, radar_time, i, topic)
       plt.pause(0.2)
-
+  print('Saved {} point clouds.'.format(len(plot_data)))
   imudata = get_imu(args.seq)
-  imuparams = {'sensor': 'imu'}
+  imuparams = {'sensor_type': 'imu'}
   imutimes = get_timestamps(args.seq, imuparams)
-  assert len(imudata) == len(imutimes))
+  assert(len(imudata) == len(imutimes))
   imutopic = '/gx5/imu/data'
-  for i in range(len(imudata)):
-      save_imu_data(bag, imudata[i], imutimes[i], i, imutopic)
-
+  for mi in range(len(imudata)):
+      save_imu_data(bag, imudata[mi], imutimes[mi], mi, imutopic)
+  print('Saved {} imu data.'.format(len(imudata)))
   bag.close()
-  
-
-

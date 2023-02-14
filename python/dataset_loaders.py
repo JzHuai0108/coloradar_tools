@@ -67,7 +67,7 @@ def get_heatmap(index, seq_dir, params):
   maxvel = frame[:, :, :, 1].max()
   minvel = frame[:, :, :, 1].min()
   if abs(maxvel) < 0.01 and abs(minvel) < 0.01:
-    print('Scale up the velocity by 1000 for small vel range {} to {}.'.format(minvel, maxvel))
+    print('Scale up the velocity by 1000 for small vel range {:.6f} to {:.6f}.'.format(minvel, maxvel))
     frame[:, :, :, 1] = frame[:, :, :, 1] * 1000
   return frame
 
