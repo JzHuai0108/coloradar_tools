@@ -8,7 +8,8 @@
 
 %% Define User values
 
-source_dir              = '../raw_data/12_21_2020_arpg_lab_run0/';
+source_dir              = '../../2_28_2021_outdoors_run0/';
+source_dir = '../../12_21_2020_ec_hallways_run0/';
 device_name             = 'single_chip/';
 adc_data_path           = 'adc_samples/data/';
 adc_data_suffix         = '.bin';
@@ -71,27 +72,28 @@ for frame_index    = 200:201
          (good_heatmap_data_filename == 2) && (good_heatmap_time_filename == 2) && ...
          (good_pointcloud_data_filename == 2) && (good_pointcloud_time_filename == 2))
 
-      disp(' ')
-      disp(['...Processing frame number: ',num2str(frame_index)]);
+      % disp(' ')
+      % disp(['...Processing frame number: ',num2str(frame_index)]);
       
       %% Read the ADC Samples
       %  ====================
       
-      disp(' ')
-      disp(['opening ADC sample file: ',adc_data_filename,'...']);
+      % disp(' ')
+      % disp(['opening ADC sample file: ',adc_data_filename,'...']);
       
       % Read the binary file as a string of 16 bit integers
       
       % open the file
       fid   = fopen(adc_data_filename,'r');
       [input_data, num_cnt] = fread(fid,Inf,'int16');
+      fclose(fid);
       
       % There should be num_Rx * num_Tx * num_ADC * num_chirp = real samples
       % There should be num_Rx * num_Tx * num_ADC * num_chirp = imag samples
       
       expected_num_samples = 2*(num_Rx * num_Tx * num_ADC * num_chirp);
-      disp(['Number of expected ADC samples: ',num2str(expected_num_samples)]);
-      disp(['Number of ADC samples read:     ',num2str(num_cnt)]);
+      % disp(['Number of expected ADC samples: ',num2str(expected_num_samples)]);
+      % disp(['Number of ADC samples read:     ',num2str(num_cnt)]);
       
       %% Convert from serial format to matrix format
       
@@ -138,25 +140,27 @@ for frame_index    = 200:201
       
       time_fid                = fopen(adc_time_filename,'r');
       time_stamp_all_frames   = fscanf(time_fid,'%f');
-      ADC_time                = time_stamp_all_frames(frame_index);
+      fclose(time_fid);
+      ADC_time                = time_stamp_all_frames(frame_index + 1);
       
       %% Read the heatmap file
       %  =====================
       
-      disp(' ')
-      disp(['opening heatmap file: ',heatmap_data_filename,'...']);
+      % disp(' ')
+      % disp(['opening heatmap file: ',heatmap_data_filename,'...']);
       
       % Read the binary file as a string of 16 bit integers
       
       % open the file
       fid   = fopen(heatmap_data_filename,'r');
       [input_heatmap_data, num_cnt] = fread(fid,Inf,'single'); % 32 bit float
+      fclose(fid);
       
       % There should be two value per heatmap location: intensity & range rate
       expected_num_samples = 2*(num_range_bins * num_elevation_bins * num_azimuth_bins);
       
-      disp(['Number of expected heatmap samples: ',num2str(expected_num_samples)]);
-      disp(['Number of heatmap samples read:     ',num2str(num_cnt)]);
+      % disp(['Number of expected heatmap samples: ',num2str(expected_num_samples)]);
+      % disp(['Number of heatmap samples read:     ',num2str(num_cnt)]);
       
       %% Convert from serial format to matrix format
       
@@ -193,28 +197,32 @@ for frame_index    = 200:201
          end % end for index_azimuth
       end % end for index_range
 
+      hrm = max(max(max(heatmap_range_rate)));
+      hrn = min(min(min(heatmap_range_rate)));
+      
       %% Read the heatmap time (seconds since 1-Jan-1970)
       
       time_fid                = fopen(heatmap_time_filename,'r');
       time_stamp_all_frames   = fscanf(time_fid,'%f');
-      heatmap_time            = time_stamp_all_frames(frame_index);
+      heatmap_time            = time_stamp_all_frames(frame_index + 1);
       
       %% Read the Point Cloud file
       %  =========================
       
-      disp(' ')
-      disp(['opening point cloud file: ',pointcloud_data_filename,'...']);
+      % disp(' ')
+      % disp(['opening point cloud file: ',pointcloud_data_filename,'...']);
       
       % Read the binary file as a string of 16 bit integers
       
       % open the file
       fid   = fopen(pointcloud_data_filename,'r');
       [input_pointcloud_data, num_cnt] = fread(fid,Inf,'single'); % 32 bit float
+      fclose(fid);
       
       % There should be 5 values per point cloud (x,y,z,intensity,velocity)
       
       num_pointcloud = num_cnt / 5;
-      disp(['Number of point cloud samples read: ',num2str(num_pointcloud)]);
+      % disp(['Number of point cloud samples read: ',num2str(num_pointcloud)]);
       
       % Read the serial data
       
@@ -247,7 +255,22 @@ for frame_index    = 200:201
             pointcloud_range_rate(index)  = input_pointcloud_data(index_range_rate);
             
          end % end for index loop
+         m = max(pointcloud_range_rate);
+         n = min(pointcloud_range_rate);
+         disp(['heatmap max range rate: ', num2str(hrm), ' min range rate: ', num2str(hrn), ...
+               ' max range rate: ', num2str(m), ' min range rate: ', num2str(n)]);
+         close all
+         f1 = figure;
+         ei = 8;
+         imagesc(azimuth_bins * 180 /pi, range_bin_width * 64, heatmap_range_rate(:, :, ei));
          
+         xlabel('Azimuth (Deg)'); ylabel('Range (m)'); title('Range Azimuth Heatmap');
+         f2 = figure;
+         plot3(pointcloud_x, pointcloud_y, pointcloud_z, 'r.');
+         xlabel('x (m)'); ylabel('y (m)'); zlabel('z (m)');
+         axis equal; grid on;
+         movegui(f1, 'northwest');
+         pause(0.5);
       else
          pointcloud_x            = NaN;
          pointcloud_y            = NaN;
@@ -256,12 +279,13 @@ for frame_index    = 200:201
          pointcloud_range_rate   = NaN;
          
       end % end if(num_pointcloud > 0)
-
+      
       %% Read the pointcloud time (seconds since 1-Jan-1970)
       
       time_fid                = fopen(pointcloud_time_filename,'r');
       time_stamp_all_frames   = fscanf(time_fid,'%f');
-      pointcloud_time         = time_stamp_all_frames(frame_index);
+      fclose(time_fid);
+      pointcloud_time         = time_stamp_all_frames(frame_index + 1);
       
       %% Process the ADC, heatmap, and point cloud data
       

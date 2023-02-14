@@ -8,7 +8,9 @@
 
 %% Define User values
 
-source_dir           = '../2_28_2021_outdoors_run0/';
+source_dir           = '../../2_28_2021_outdoors_run0/';
+% The rate of 2_28_2021_outdoors_run0 probably need to scale up by 1000.
+source_dir = '../../12_21_2020_ec_hallways_run0/';
 device_name          = 'cascade/';
 adc_data_path        = 'adc_samples/data/';
 adc_data_suffix      = '.bin';
@@ -80,9 +82,17 @@ for frame_index    = 0:numheatmaps-1
       disp(['heatmap time ', num2str(heatmap_time), ' adc-heatmap time ', num2str(adc_time - heatmap_time)]);
       % The ADC samples, timestamp, and heatmap data have been loaded into
       % the MATLAB workspace. 
-      
+      check_rate(heatmap_range_rate);
       % User defined operations are placed here...
+      points = heatmap_to_targetpoints(heatmap_intensity, heatmap_range_rate);      
+      % save points and heatmap_time to a txt file
       
    end % end if(good_filename == 2)
    
 end % end for frame_index loop
+
+function check_rate(heatmap_range_rate)
+   m = max(max(max(heatmap_range_rate)));
+   n = min(min(min(heatmap_range_rate)));
+   disp(['rate max ', num2str(m), ', min ', num2str(n)]);
+end

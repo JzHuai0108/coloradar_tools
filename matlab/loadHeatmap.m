@@ -56,11 +56,22 @@ function [heatmap_time, heatmap_intensity, heatmap_range_rate] = loadHeatmap(hea
       end % end for index_azimuth
    end % end for index_range
 
+   num_intensity_nans = sum(isnan(heatmap_intensity(:)));
+   num_rate_nans = sum(isnan(heatmap_range_rate(:)));
+   assert(num_intensity_nans == 0, 'NaNs found in intensity');
+   assert(num_rate_nans == 0, 'NaNs found in range rate');
    %% Read the ADC sample time (seconds since 1-Jan-1970)
    
    time_fid                = fopen(heatmap_time_filename,'r');
    time_stamp_all_frames   = fscanf(time_fid,'%f');
    fclose(time_fid);
    heatmap_time            = time_stamp_all_frames(frame_index + 1);
+
+   rrm = max(max(max(heatmap_range_rate)));
+   rrn = min(min(min(heatmap_range_rate)));
+   if rrm < 0.1 && rrn < 0.1
+      heatmap_range_rate = heatmap_range_rate * 1000;
+      disp(['scale up heatmap range rate whose max ', num2str(rrm), ' min ', num2str(rrn)]);
+   end
 end
 
