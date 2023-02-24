@@ -31,7 +31,7 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
     radar_hm[:, :, :, 0] = (radar_hm[:, :, :, 0] - minval) / (maxval - minval)
 
     allintensities = radar_hm[:, :, :, 0].flatten()
-    intensity_threshold = np.percentile(allintensities, cfar_params['intensity_threshold_percentile'])
+    intensity_threshold = min(np.percentile(allintensities, cfar_params['intensity_threshold_percentile']), 0.01)
 
     indicators = np.zeros(hmshp[:3])
     half_range_guard = cfar_params['range_guard'] // 2
@@ -85,22 +85,23 @@ def heatmap_to_pointcloud(radar_hm, cfar_params):
 
     # nonmaximum suppression in blocks of size 3x3x3
     status = np.ones(len(pt_ids))
-    for c, ids in enumerate(pt_ids):
-        i, j, k = ids
-        val = indicators[i, j, k]
-        if val == 0:
-            continue
-        for ii in range(i - 1, i + 2):
-            for jj in range(j - 1, j + 2):
-                for kk in range(k - 1, k + 2):
-                    if indicators[ii, jj, kk] > val:
-                        indicators[i, j, k] = 0
-                        status[c] = 0
+    if len(pt_ids) > 400:
+        for c, ids in enumerate(pt_ids):
+            i, j, k = ids
+            val = indicators[i, j, k]
+            if val == 0:
+                continue
+            for ii in range(i - 1, i + 2):
+                for jj in range(j - 1, j + 2):
+                    for kk in range(k - 1, k + 2):
+                        if indicators[ii, jj, kk] > val:
+                            indicators[i, j, k] = 0
+                            status[c] = 0
+                            break
+                    if status[c] == 0:
                         break
                 if status[c] == 0:
                     break
-            if status[c] == 0:
-                break
     nms_ptids = [pt_ids[i] for i in range(len(pt_ids)) if status[i] == 1]
 
     end2 = time.time()
@@ -158,8 +159,8 @@ def save_pointcloud(bag, radar_pc_local, scan_time, seq_id, topic):
     fields = [PointField('x', 0, PointField.FLOAT32, 1),
               PointField('y', 4, PointField.FLOAT32, 1),
               PointField('z', 8, PointField.FLOAT32, 1),
-              PointField('i', 12, PointField.FLOAT32, 1),
-              PointField('r', 16, PointField.FLOAT32, 1)]
+              PointField('intensity', 12, PointField.FLOAT32, 1),
+              PointField('doppler', 16, PointField.FLOAT32, 1)]
     pcl_msg = pcl2.create_cloud(header, fields, radar_pc_local.astype(np.float32))
     bag.write(topic, pcl_msg, t=pcl_msg.header.stamp)
 
