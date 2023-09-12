@@ -3,7 +3,7 @@
 % clouds with ground truth poses, see pointcloud_merge.py.
 close all;
 
-datadir = '/media/jhuai/BackupPlus/jhuai/results/align_coloradar';
+datadir = '/media/jhuai/BackupPlus/jhuai/data/coloradar/align_coloradar';
 
 seqnames = {'edgar_classroom_run', 'ec_hallways_run', 'arpg_lab_run', ...
             'outdoors_run', 'aspen_run', 'edgar_army_run', 'longboard_run'};

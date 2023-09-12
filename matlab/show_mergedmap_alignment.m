@@ -1,16 +1,16 @@
 function show_mergedmap_alignment()
 addpath('/media/jhuai/BackupPlus/jhuai/tools/export_fig');
 
-datadir = '/media/jhuai/BackupPlus/jhuai/results/align_coloradar';
+datadir = '/media/jhuai/BackupPlus/jhuai/data/coloradar/align_coloradar';
 bagdir = '/media/jhuai/BackupPlus/jhuai/data/coloradar/rosbags';
 seqnames = {'edgar_classroom_run', 'ec_hallways_run', 'arpg_lab_run', ...
             'outdoors_run', 'aspen_run', 'edgar_army_run', 'longboard_run'};
-refids = [0, 0, 0, 0, 0, 0, 0];
-seqids = {1:15, 1:15, 1:15. 1:15, 1:15, 1:15, 1:15};
+refids = [0, 0, 0, 0, 0, 0, 4];
+seqids = {1:15, 1:15, 1:15. 1:15, 1:15, 1:15, 5};
 
 close all;
 
-for s = 1:6 % numel(seqnames)
+for s = 1:numel(seqnames)
     seqname = seqnames{s};
     basepcd = [datadir, '/', seqname, num2str(refids(s)), '/mergedmap.pcd'];
     fixed = pcread(basepcd);
@@ -24,7 +24,7 @@ for s = 1:6 % numel(seqnames)
         end
         fprintf('Showing %s\n', querypcd);
         moving = pcread(querypcd);
-        queryposefile = [datadir, '/', seqname, num2str(i), '/W0_T_Wi.txt'];
+        queryposefile = [datadir, '/', seqname, num2str(i), '/W', num2str(refids(s)), '_T_Wi.txt'];
 
         if ~isfile(queryposefile)
             fprintf('Failed to find pose file %s\n', queryposefile);
